@@ -1,0 +1,140 @@
+<!-- templates/lng_planner/supplier_form.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-6">
+    <div class="max-w-2xl mx-auto">
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">{{ title }}</h2>
+            
+            {% if form.errors %}
+            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded">
+                <p class="font-bold">Please correct the errors below:</p>
+            </div>
+            {% endif %}
+            
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+                
+                <div>
+                    <label for="id_plant" class="block text-sm font-semibold text-gray-700 mb-2">
+                        Plant (Serves To) *
+                    </label>
+                    {{ form.plant }}
+                    {% if form.plant.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.plant.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="id_name" class="block text-sm font-semibold text-gray-700 mb-2">
+                        Supplier Name *
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="id_preference" class="block text-sm font-semibold text-gray-700 mb-2">
+                        Preference (Lower values served first)
+                    </label>
+                    {{ form.preference }}
+                    {% if form.preference.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ form.preference.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Hidden field for date range ID (for editing existing ranges) -->
+                <input type="hidden" name="date_range_id" id="id_date_range_id" value="">
+                
+                <!-- Add Another Date Range Button -->
+                <div class="mt-6">
+                    <button type="button" id="addDateRangeBtn" class="w-full bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition font-semibold text-lg shadow-md">
+                        + Add Date Range
+                    </button>
+                </div>
+
+                <!-- Additional date ranges container -->
+                <div id="additionalDateRanges" class="space-y-4 mt-4"></div>
+                
+                <div class="flex gap-3 pt-6 border-t-2 border-gray-200">
+                    <button type="submit" class="flex-1 bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition font-semibold shadow-md">
+                        Save Supplier
+                    </button>
+                    <a href="{% url 'lng_planner:dashboard' %}" class="flex-1 bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition text-center font-semibold shadow-md">
+                        Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let dateRangeCount = 0;
+
+        document.getElementById('addDateRangeBtn').addEventListener('click', function() {
+            dateRangeCount++;
+            
+            const container = document.createElement('div');
+            container.className = 'bg-green-50 p-6 rounded-lg mt-4 border-2 border-green-200';
+            container.id = 'dateRange_' + dateRangeCount;
+            
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="font-bold text-gray-800 text-lg">Additional Date Range #${dateRangeCount}</h4>
+                    <button type="button" onclick="removeDateRange(${dateRangeCount})" 
+                            class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition text-sm font-semibold">
+                        ✕ Remove
+                    </button>
+                </div>
+                
+                <!-- Hidden field for date range ID (for editing existing ranges) -->
+                <input type="hidden" name="date_ranges_${dateRangeCount}_date_range_id" id="id_date_ranges_${dateRangeCount}_date_range_id" value="">
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Daily Supply (MT/day) *
+                        </label>
+                        <input type="number" step="0.01" name="date_ranges_${dateRangeCount}_daily_supply" 
+                               class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            From Date *
+                        </label>
+                        <input type="date" name="date_ranges_${dateRangeCount}_from_date" 
+                               class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            To Date *
+                        </label>
+                        <input type="date" name="date_ranges_${dateRangeCount}_to_date" 
+                               class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200" required>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('additionalDateRanges').appendChild(container);
+        });
+
+        function removeDateRange(id) {
+            const element = document.getElementById('dateRange_' + id);
+            if (element) {
+                element.remove();
+            }
+        }
+    </script>
+</body>
+</html>
