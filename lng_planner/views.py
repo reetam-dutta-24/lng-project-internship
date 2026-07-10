@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from django.contrib import messages
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -418,19 +418,18 @@ def view_master_history(request):
 
 
 # ── Dashboard and simulation selection ─────────────────────────────────────
-@login_required
-def dashboard(request):
+def _build_dashboard_context(request):
     # Main dashboard view for the current user. Chooses an active simulation,
     # falls back to the master simulation if no active one is available,
     # and populates the context for rendering the dashboard page.
     from datetime import datetime
-    
+
     master_simulation = Simulation.objects.filter(is_master=True).first()
-    
+
     # Determine simulation visibility based on role
     is_super_user = request.user.is_superuser
     is_planning_admin_role = is_super_user or request.user.groups.filter(name='Planning Admin').exists()
-    
+
     # ONLY superuser can see all simulations
     # Both Planner and Planning Admin only see their own simulations
     if is_super_user:
@@ -439,10 +438,10 @@ def dashboard(request):
     else:
         # Planners and Planning Admins can only see their own simulations
         simulations = Simulation.objects.filter(user=request.user, is_master=False).order_by('-created_at')
-    
+
     # Get the active simulation for this user (must be non-master)
     active_simulation = simulations.filter(is_active=True).first()
-    
+
     # If no active simulation found, default to master (read-only mode)
     if not active_simulation:
         if master_simulation:
@@ -452,30 +451,30 @@ def dashboard(request):
             active_simulation = simulations.first()
             active_simulation.is_active = True
             active_simulation.save()
-    
+
     # Get current active master version
     current_master_version = None
     if master_simulation and hasattr(master_simulation, 'master_version') and master_simulation.master_version:
         current_master_version = master_simulation.master_version
-    
+
     # Handle date range filter from GET parameters
     filter_from_date = None
     filter_to_date = None
     filter_error = None
-    
+
     if request.GET.get('from_date') and request.GET.get('to_date'):
         try:
             filter_from_date = datetime.strptime(request.GET['from_date'], '%Y-%m-%d').date()
             filter_to_date = datetime.strptime(request.GET['to_date'], '%Y-%m-%d').date()
-            
+
             # Validate date range
             if filter_from_date > filter_to_date:
                 filter_error = "From Date cannot be after To Date"
-            elif filter_from_date < active_simulation.start_date or filter_to_date > active_simulation.end_date:
+            elif active_simulation and filter_from_date < active_simulation.start_date or filter_to_date > active_simulation.end_date:
                 filter_error = f"Selected range must be within {active_simulation.start_date} to {active_simulation.end_date}"
         except ValueError:
             filter_error = "Invalid date format"
-    
+
     context = {
         'simulations': simulations,
         'active_simulation': active_simulation,
@@ -487,13 +486,40 @@ def dashboard(request):
         'filter_from_date': filter_from_date,
         'filter_to_date': filter_to_date,
         'filter_error': filter_error,
+        'active_section': 'home',
     }
-    
+
     if active_simulation:
         # Pass filter parameters to get_simulation_data
         context.update(get_simulation_data(active_simulation, filter_from_date, filter_to_date))
-    
+
+    return context
+
+
+@login_required
+def dashboard(request):
+    context = _build_dashboard_context(request)
     return render(request, 'lng_planner/dashboard.html', context)
+
+
+@login_required
+def dashboard_section(request, section):
+    valid_sections = {'suppliers', 'customers', 'refineries', 'cargo', 'inventory', 'excel'}
+    if section not in valid_sections:
+        raise Http404('Section not found')
+
+    context = _build_dashboard_context(request)
+    context['active_section'] = section
+    context['section_title'] = {
+        'suppliers': 'Supplier Operations',
+        'customers': 'Customer Management',
+        'refineries': 'Refinery Planning',
+        'cargo': 'Cargo Operations',
+        'inventory': 'Daily Inventory Projection',
+        'excel': 'Excel & Reports',
+    }[section]
+
+    return render(request, f'lng_planner/dashboard_{section}.html', context)
 
 
 @login_required
@@ -2642,6 +2668,19 @@ def get_simulation_data(simulation, filter_from_date=None, filter_to_date=None):
     comments = simulation.comments.select_related('created_by').order_by('-created_at')
 
     # Cargos are already filtered via filtered_cargo_ids, no need for additional filtering
+    demand_reference = total_demand_till_today if total_demand_till_today else 1
+    supply_coverage_pct = int(min(100, max(0, (total_supplied_till_today / demand_reference) * 100)))
+    inventory_buffer_pct = int(min(100, max(0, (total_current_inventory / max(total_demand_till_today or 1, 1)) * 100))) if total_current_inventory >= 0 else 0
+
+    plant_chart_data = []
+    for plant in plants:
+        plant_inventory = simulation.plant_inventories.filter(plant=plant).first()
+        plant_chart_data.append({
+            'name': plant.name,
+            'suppliers': simulation.suppliers.filter(plant=plant, id__in=filtered_supplier_ids).count(),
+            'customers': simulation.customers.filter(plant=plant, id__in=filtered_customer_ids).count(),
+            'inventory': float(plant_inventory.opening_inventory) if plant_inventory else 0,
+        })
     
     return {
         # querysets used in supplier/cargo/customer tables - FILTERED!
@@ -2670,6 +2709,9 @@ def get_simulation_data(simulation, filter_from_date=None, filter_to_date=None):
 
         # ── plant-wise dict consumed by the per-plant stat panels ──
         'plant_stats': plant_stats,
+        'supply_coverage_pct': supply_coverage_pct,
+        'inventory_buffer_pct': inventory_buffer_pct,
+        'plant_chart_data': plant_chart_data,
     }
 
 

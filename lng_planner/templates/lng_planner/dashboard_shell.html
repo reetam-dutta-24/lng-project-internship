@@ -1,0 +1,63 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LNG Planning Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(135deg, #fffaf6 0%, #fdf1e6 38%, #f8fbff 100%); }
+        .sidebar-link.active { background: linear-gradient(90deg, #f97316 0%, #fb923c 100%); color: white; box-shadow: 0 10px 24px rgba(249, 115, 22, 0.18); }
+        .sidebar-link { transition: all 0.2s ease; color: #7c2d12; }
+        .sidebar-link:hover { background-color: #fff2e7; color: #c2410c; }
+        .card-glow { box-shadow: 0 16px 34px rgba(201, 112, 69, 0.12); }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800">
+    {% include 'lng_planner/navbar.html' %}
+
+    <div class="flex min-h-[calc(100vh-3.5rem)]">
+        <aside class="hidden lg:flex w-72 flex-col border-r border-orange-100 bg-gradient-to-b from-[#fff8f2] via-[#fff4eb] to-[#fef2e8] text-slate-700">
+            <div class="border-b border-orange-100 px-6 py-6">
+                <p class="text-xs uppercase tracking-[0.3em] text-orange-500">Operations Hub</p>
+                <h2 class="mt-2 text-xl font-semibold text-slate-900">LNG Planning Suite</h2>
+                <p class="mt-2 text-sm text-slate-600">A professional control center for planning and execution.</p>
+            </div>
+
+            <nav class="flex-1 space-y-2 px-4 py-5">
+                <a href="{% url 'lng_planner:dashboard' %}" class="sidebar-link {% if active_section == 'home' %}active{% endif %} flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium">
+                    <span>◉</span><span>Home Dashboard</span>
+                </a>
+                <a href="{% url 'lng_planner:dashboard_section' 'suppliers' %}" class="sidebar-link {% if active_section == 'suppliers' %}active{% endif %} flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium">
+                    <span>⛽</span><span>Suppliers</span>
+                </a>
+                <a href="{% url 'lng_planner:dashboard_section' 'customers' %}" class="sidebar-link {% if active_section == 'customers' %}active{% endif %} flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium">
+                    <span>👥</span><span>Customers</span>
+                </a>
+                <a href="{% url 'lng_planner:dashboard_section' 'refineries' %}" class="sidebar-link {% if active_section == 'refineries' %}active{% endif %} flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium">
+                    <span>⚙️</span><span>Refineries</span>
+                </a>
+                <a href="{% url 'lng_planner:dashboard_section' 'cargo' %}" class="sidebar-link {% if active_section == 'cargo' %}active{% endif %} flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium">
+                    <span>🚢</span><span>Cargo</span>
+                </a>
+                <a href="{% url 'lng_planner:dashboard_section' 'inventory' %}" class="sidebar-link {% if active_section == 'inventory' %}active{% endif %} flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium">
+                    <span>📦</span><span>Daily Inventory</span>
+                </a>
+                <a href="{% url 'lng_planner:dashboard_section' 'excel' %}" class="sidebar-link {% if active_section == 'excel' %}active{% endif %} flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium">
+                    <span>📊</span><span>Excel & Reports</span>
+                </a>
+            </nav>
+
+            <div class="border-t border-orange-100 px-6 py-5 text-sm text-slate-600">
+                <p class="font-medium text-slate-800">Current simulation</p>
+                <p class="mt-1">{{ active_simulation.name|default:'No active simulation' }}</p>
+            </div>
+        </aside>
+
+        <main class="flex-1 p-4 lg:p-6">
+            {% block dashboard_content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>

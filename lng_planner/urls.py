@@ -19,6 +19,7 @@ urlpatterns = [
     
     # Dashboard
     path('dashboard/', views.dashboard, name='dashboard'),
+    path('dashboard/section/<str:section>/', views.dashboard_section, name='dashboard_section'),
     
     # Plant management
     path('plants/', views.manage_plants, name='manage_plants'),

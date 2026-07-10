@@ -1,0 +1,72 @@
+{% extends 'lng_planner/dashboard_shell.html' %}
+{% block dashboard_content %}
+<div class="space-y-6">
+    <div class="rounded-2xl border-0 bg-gradient-to-r from-teal-700 via-teal-600 to-cyan-600 p-8 card-glow text-white">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+                <p class="text-sm font-semibold uppercase tracking-[0.24em] text-teal-100">Cargo module</p>
+                <h1 class="mt-3 text-3xl font-bold">Cargo movements and deliveries</h1>
+                <p class="mt-2 text-sm text-teal-50">Track all cargo shipments, delivery schedules, and load planning from a centralized cargo workspace.</p>
+            </div>
+            {% if active_simulation and not is_viewing_master %}
+            <a href="{% url 'lng_planner:add_cargo' active_simulation.id %}" class="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-teal-700 hover:bg-teal-50">Add cargo</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 card-glow">
+        <div class="mb-4">
+            <input type="search" id="cargoSearch" placeholder="🔍 Search cargo name, plant, or delivery date..." class="w-full rounded-xl border border-teal-300 bg-teal-50 px-4 py-3 text-sm font-medium shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200" />
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full border-collapse text-sm" id="cargoTable">
+                <thead>
+                    <tr class="bg-teal-50 text-left text-teal-800">
+                        <th class="border border-teal-100 px-4 py-3 font-semibold">Cargo</th>
+                        <th class="border border-teal-100 px-4 py-3 font-semibold">Plant</th>
+                        <th class="border border-teal-100 px-4 py-3 font-semibold">Delivery date</th>
+                        <th class="border border-teal-100 px-4 py-3 font-semibold">Amount</th>
+                        {% if not is_viewing_master %}<th class="border border-teal-100 px-4 py-3 font-semibold">Actions</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if cargos %}
+                    {% for cargo in cargos %}
+                    <tr class="hover:bg-teal-50/70">
+                        <td class="border border-slate-200 px-4 py-3 font-semibold text-slate-800">{{ cargo.cargo_name }}</td>
+                        <td class="border border-slate-200 px-4 py-3 text-slate-600">{{ cargo.plant.name }}</td>
+                        <td class="border border-slate-200 px-4 py-3">{{ cargo.delivery_date|date:"M d, Y" }}</td>
+                        <td class="border border-slate-200 px-4 py-3 font-semibold text-teal-700">{{ cargo.amount|floatformat:0 }} MT</td>
+                        {% if not is_viewing_master %}
+                        <td class="border border-slate-200 px-4 py-3 text-center">
+                            <a href="{% url 'lng_planner:edit_cargo' cargo.id %}" class="mr-2 text-blue-600 hover:text-blue-700">Edit</a>
+                            <a href="{% url 'lng_planner:delete_cargo' cargo.id %}" onclick="return confirm('Delete this cargo?')" class="text-red-600 hover:text-red-700">Delete</a>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr><td colspan="5" class="px-4 py-6 text-center text-slate-500">No cargo entries have been added yet.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('cargoSearch');
+        const table = document.getElementById('cargoTable');
+        if (!searchInput || !table) return;
+
+        searchInput.addEventListener('input', function () {
+            const query = this.value.trim().toLowerCase();
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(query) ? '' : 'none';
+            });
+        });
+    });
+</script>
+{% endblock %}

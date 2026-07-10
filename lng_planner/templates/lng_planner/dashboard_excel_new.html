@@ -1,0 +1,104 @@
+{% extends 'lng_planner/dashboard_shell.html' %}
+{% block dashboard_content %}
+<div class="space-y-6">
+    <div class="rounded-2xl border-0 bg-gradient-to-r from-sky-700 via-sky-600 to-blue-600 p-8 card-glow text-white">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+                <p class="text-sm font-semibold uppercase tracking-[0.24em] text-sky-100">Excel & Reports module</p>
+                <h1 class="mt-3 text-3xl font-bold">Data export and reporting</h1>
+                <p class="mt-2 text-sm text-sky-50">Export planning data to Excel, generate reports, and publish master schedules across the organization.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <!-- Export Card -->
+        <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-sky-50 to-blue-50 p-6 card-glow">
+            <div class="mb-4 flex items-center gap-3">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-sky-600 text-white">
+                    <span class="text-xl">📊</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900">Export to Excel</h3>
+            </div>
+            <p class="mb-4 text-sm text-slate-600">Export all planning data including suppliers, customers, refineries, and cargo to a formatted Excel workbook.</p>
+            {% if active_simulation and not is_viewing_master %}
+            <a href="{% url 'lng_planner:export_excel' active_simulation.id %}" class="inline-block rounded-lg bg-sky-600 px-4 py-2.5 font-semibold text-white hover:bg-sky-700">Generate Excel file</a>
+            {% else %}
+            <button disabled class="inline-block rounded-lg bg-gray-300 px-4 py-2.5 font-semibold text-gray-500">Export disabled for master</button>
+            {% endif %}
+        </div>
+
+        <!-- Publish Report Card -->
+        <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-blue-50 to-cyan-50 p-6 card-glow">
+            <div class="mb-4 flex items-center gap-3">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-600 text-white">
+                    <span class="text-xl">📋</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900">Publish audit report</h3>
+            </div>
+            <p class="mb-4 text-sm text-slate-600">Generate and publish an audit report summarizing the current simulation state and all changes made.</p>
+            {% if active_simulation %}
+            <a href="{% url 'lng_planner:publish_audit_report' active_simulation.id %}" class="inline-block rounded-lg bg-blue-600 px-4 py-2.5 font-semibold text-white hover:bg-blue-700">Generate audit report</a>
+            {% else %}
+            <button disabled class="inline-block rounded-lg bg-gray-300 px-4 py-2.5 font-semibold text-gray-500">No simulation selected</button>
+            {% endif %}
+        </div>
+
+        <!-- Publish Master Schedule Card -->
+        <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-indigo-50 to-purple-50 p-6 card-glow">
+            <div class="mb-4 flex items-center gap-3">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-600 text-white">
+                    <span class="text-xl">🚀</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900">Publish as master schedule</h3>
+            </div>
+            <p class="mb-4 text-sm text-slate-600">Publish the current simulation as the master version for organization-wide use.</p>
+            {% if active_simulation and not is_viewing_master %}
+            <a href="{% url 'lng_planner:publish_master' active_simulation.id %}" class="inline-block rounded-lg bg-indigo-600 px-4 py-2.5 font-semibold text-white hover:bg-indigo-700">Publish as master</a>
+            {% else %}
+            <button disabled class="inline-block rounded-lg bg-gray-300 px-4 py-2.5 font-semibold text-gray-500">Cannot publish master</button>
+            {% endif %}
+        </div>
+
+        <!-- SAP Refresh Card -->
+        <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-orange-50 to-red-50 p-6 card-glow">
+            <div class="mb-4 flex items-center gap-3">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-600 text-white">
+                    <span class="text-xl">🔄</span>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900">SAP data refresh</h3>
+            </div>
+            <p class="mb-4 text-sm text-slate-600">Sync latest refinery feed requirements and supplier capacity data from the SAP system.</p>
+            {% if active_simulation and not is_viewing_master %}
+            <a href="{% url 'lng_planner:refresh_sap' active_simulation.id %}" class="inline-block rounded-lg bg-orange-600 px-4 py-2.5 font-semibold text-white hover:bg-orange-700">Refresh SAP data</a>
+            {% else %}
+            <button disabled class="inline-block rounded-lg bg-gray-300 px-4 py-2.5 font-semibold text-gray-500">SAP refresh disabled</button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if active_simulation %}
+    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-6 card-glow">
+        <h3 class="mb-4 text-lg font-bold text-slate-900">Current simulation context</h3>
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="rounded-lg bg-white p-4">
+                <p class="text-xs font-semibold uppercase text-slate-500">Simulation</p>
+                <p class="mt-1 text-sm font-bold text-slate-900">{{ active_simulation.name }}</p>
+            </div>
+            <div class="rounded-lg bg-white p-4">
+                <p class="text-xs font-semibold uppercase text-slate-500">Status</p>
+                <p class="mt-1 text-sm font-bold text-slate-900">{{ active_simulation.status|title }}</p>
+            </div>
+            <div class="rounded-lg bg-white p-4">
+                <p class="text-xs font-semibold uppercase text-slate-500">Created</p>
+                <p class="mt-1 text-sm font-bold text-slate-900">{{ active_simulation.created_at|date:"M d, Y" }}</p>
+            </div>
+            <div class="rounded-lg bg-white p-4">
+                <p class="text-xs font-semibold uppercase text-slate-500">Last modified</p>
+                <p class="mt-1 text-sm font-bold text-slate-900">{{ active_simulation.updated_at|date:"M d, Y" }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
