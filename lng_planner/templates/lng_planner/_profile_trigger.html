@@ -1,0 +1,33 @@
+{% comment %}
+Profile trigger button used inside navbar.html.
+Expects context vars: display_name, sub_label, is_super_user, is_planning_admin
+{% endcomment %}
+<button type="button"
+        id="profile-menu-button"
+        aria-haspopup="true"
+        aria-expanded="false"
+        class="flex items-center space-x-2.5 pl-1.5 pr-2 sm:pr-3 py-1 rounded-full hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1">
+
+    <!-- Avatar Circle: solid brand color + initials -->
+    <span class="flex items-center justify-center h-8 w-8 rounded-full bg-blue-900 text-white text-sm font-semibold uppercase select-none">
+        {{ display_name|slice:":1" }}
+    </span>
+
+    <!-- Name + Role label (hidden on smallest screens to save space) -->
+    <span class="hidden sm:flex flex-col items-start leading-tight">
+        <span class="text-sm font-medium text-gray-800 max-w-[9rem] truncate">{{ display_name }}</span>
+        <span class="text-xs
+            {% if is_super_user %}text-purple-700
+            {% elif is_planning_admin %}text-blue-700
+            {% else %}text-green-700{% endif %}">
+            {% if is_super_user %}Django Superuser
+            {% elif is_planning_admin %}Planning Admin
+            {% else %}Planner{% endif %}
+        </span>
+    </span>
+
+    <!-- Chevron indicator -->
+    <svg id="profile-menu-chevron" class="h-4 w-4 text-gray-400 transition-transform duration-150" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+    </svg>
+</button>
