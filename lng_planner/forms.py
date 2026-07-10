@@ -1,5 +1,6 @@
 from django import forms
 from .models import CustomerDate, Refinery, RefineryDate, Simulation, Supplier, Cargo, Customer, Plant, PlantInventory, APIConfiguration, SupplierDate
+from django.core.exceptions import ValidationError
 
 
 class PlantForm(forms.ModelForm):
@@ -129,9 +130,10 @@ class CustomerForm(forms.ModelForm):
 class CustomerDateForm(forms.ModelForm):
     class Meta:
         model = CustomerDate
-        fields = ['from_date', 'to_date', 'daily_demand']
+        fields = ['supplier', 'from_date', 'to_date', 'daily_demand']
 
         widgets = {
+            'supplier': forms.Select(attrs={'class': 'form-control'}),
             'from_date': forms.DateInput(
                 attrs={
                     'class': 'form-control',
@@ -175,9 +177,10 @@ class RefineryForm(forms.ModelForm):
 class RefineryDateForm(forms.ModelForm):
     class Meta:
         model = RefineryDate
-        fields = ['from_date', 'to_date', 'daily_refinery_demand']
+        fields = ['supplier', 'from_date', 'to_date', 'daily_refinery_demand']
 
         widgets = {
+            'supplier': forms.Select(attrs={'class': 'form-control'}),
             'from_date': forms.DateInput(
                 attrs={
                     'class': 'form-control',
@@ -198,6 +201,42 @@ class RefineryDateForm(forms.ModelForm):
                 }
             ),
         }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter suppliers by simulation and plant if refinery is provided
+        if self.instance and self.instance.pk and self.instance.refinery:
+            refinery = self.instance.refinery
+            self.fields['supplier'].queryset = Supplier.objects.filter(
+                simulation=refinery.simulation,
+                plant=refinery.plant
+            )
+        elif 'refinery' in kwargs:
+            refinery = kwargs.get('refinery')
+            if refinery:
+                self.fields['supplier'].queryset = Supplier.objects.filter(
+                    simulation=refinery.simulation,
+                    plant=refinery.plant
+                )
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        supplier = cleaned_data.get('supplier')
+        refinery = self.instance.refinery
+        
+        if supplier and refinery:
+            # Validate that supplier and refinery belong to the same simulation
+            if supplier.simulation != refinery.simulation:
+                raise ValidationError(
+                    'Supplier and Refinery must belong to the same simulation.'
+                )
+            # Validate that supplier and refinery belong to the same plant
+            if supplier.plant != refinery.plant:
+                raise ValidationError(
+                    'Supplier and Refinery must belong to the same plant.'
+                )
+        
+        return cleaned_data
 
 class APIConfigurationForm(forms.ModelForm):
     class Meta:

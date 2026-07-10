@@ -1,5 +1,35 @@
 from django.contrib import admin
-from .models import CustomerDate, Refinery, RefineryDate, Simulation, SimulationComment, Supplier, Cargo, Customer, Plant, PlantInventory, APIConfiguration, SupplierDate
+from .models import CustomerDate, Refinery, RefineryDate, Simulation, SimulationComment, Supplier, Cargo, Customer, Plant, PlantInventory, APIConfiguration, SupplierDate, MasterVersion, Employee
+
+
+@admin.register(Employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    list_display = ['employee_id', 'full_name', 'user', 'department', 'designation', 'is_active_employee']
+    list_filter = ['department', 'designation', 'is_active_employee']
+    search_fields = ['employee_id', 'full_name', 'user__username', 'user__email']
+    readonly_fields = ['user']
+    
+    fieldsets = (
+        ('Employee Information', {
+            'fields': ('user', 'employee_id', 'full_name')
+        }),
+        ('Additional Details', {
+            'fields': ('department', 'designation', 'is_active_employee')
+        })
+    )
+
+
+@admin.register(MasterVersion)
+class MasterVersionAdmin(admin.ModelAdmin):
+    list_display = ['version_number', 'name', 'source_type', 'created_by', 'created_at', 'is_active']
+    list_filter = ['source_type', 'is_active', 'created_at']
+    search_fields = ['version_number', 'name', 'description']
+    readonly_fields = ['version_number', 'created_at']
+    
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:  # Only set created_by on creation
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(Plant)
@@ -38,8 +68,8 @@ class RefineryInline(admin.TabularInline):
 
 @admin.register(Simulation)
 class SimulationAdmin(admin.ModelAdmin):
-    list_display = ['name', 'user', 'start_date', 'end_date', 'is_master', 'is_active', 'last_sap_sync', 'updated_at']
-    list_filter = ['is_active', 'is_master', 'created_at', 'user']
+    list_display = ['name', 'user', 'start_date', 'end_date', 'is_master', 'is_active', 'master_version', 'last_sap_sync', 'updated_at']
+    list_filter = ['is_active', 'is_master', 'created_at', 'user', 'master_version']
     search_fields = ['name', 'user__username']
     date_hierarchy = 'created_at'
     inlines = [PlantInventoryInline, SupplierInline, CargoInline, CustomerInline, RefineryInline]
@@ -47,6 +77,10 @@ class SimulationAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Basic Information', {
             'fields': ('user', 'name', 'is_active', 'is_master')
+        }),
+        ('Master Version Tracking', {
+            'fields': ('master_version',),
+            'description': 'Master version this simulation was created from'
         }),
         ('Planning Parameters', {
             'fields': ('start_date', 'end_date')

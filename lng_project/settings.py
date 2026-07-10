@@ -52,9 +52,13 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'lng_project.urls'
 
-# Add login URL
-LOGIN_URL = 'admin:login'
+# Authentication settings
+LOGIN_URL = 'lng_planner:login'
 LOGIN_REDIRECT_URL = 'lng_planner:dashboard'
+LOGOUT_REDIRECT_URL = 'lng_planner:login'
+
+# Custom user model (using default User, but Employee profile links to it)
+AUTH_USER_MODEL = 'auth.User'
 
 TEMPLATES = [
     {
@@ -122,6 +126,7 @@ USE_TZ = True
 # Static files
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / 'lng_planner' / 'static']
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'

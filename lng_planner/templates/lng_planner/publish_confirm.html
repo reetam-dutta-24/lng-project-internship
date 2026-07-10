@@ -1,0 +1,96 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Publish Simulation to Master</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-6">
+    <div class="max-w-3xl mx-auto">
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                Publish Simulation to Master
+            </h2>
+
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded">
+                <p class="text-blue-800 font-semibold mb-2">About to create a new master version</p>
+                <p class="text-blue-700 text-sm">
+                    This will publish the simulation data as a new master version. All existing entities (Suppliers, Customers, Cargos, Refineries) from this simulation will be copied to the master simulation.
+                </p>
+            </div>
+
+            <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Simulation Details</h3>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Simulation Name:</p>
+                        <p class="font-semibold text-gray-800">{{ simulation.name }}</p>
+                    </div>
+                    
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Created By:</p>
+                        <p class="font-semibold text-gray-800">{{ simulation.user.get_full_name|default:simulation.user.username }}</p>
+                    </div>
+                    
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Date Range:</p>
+                        <p class="font-semibold text-gray-800">{{ simulation.start_date }} to {{ simulation.end_date }}</p>
+                    </div>
+                    
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Created At:</p>
+                        <p class="font-semibold text-gray-800">{{ simulation.created_at|date:"M d, Y H:i" }}</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <p class="text-sm text-gray-600 mb-1">New Master Version Will Be:</p>
+                    <p class="font-bold text-blue-600 text-lg">{{ next_version }}</p>
+                </div>
+            </div>
+
+            <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 rounded">
+                <p class="text-yellow-800 font-semibold mb-2">⚠️ Important Notes:</p>
+                <ul class="list-disc list-inside text-sm text-yellow-700 space-y-1">
+                    <li>This action will create a new master version and deactivate previous versions</li>
+                    <li>All existing simulations linked to old master versions will remain unchanged</li>
+                    <li>New simulations created after this will link to the new master version</li>
+                    <li>This action can only be performed by Planning Administrators</li>
+                </ul>
+            </div>
+
+            <form method="post" class="flex justify-end space-x-4">
+                {% csrf_token %}
+                
+                <a href="{% url 'lng_planner:dashboard' %}" 
+                   class="px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200">
+                    Cancel
+                </a>
+                
+                <button type="submit" 
+                        class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition duration-200 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Publish as {{ next_version }}
+                </button>
+            </form>
+        </div>
+
+        <div class="mt-6 text-center">
+            <p class="text-sm text-gray-600">
+                Need to view version history? 
+                <a href="{% url 'lng_planner:master_history' %}" class="text-blue-600 hover:text-blue-800 font-semibold">
+                    View Master Version History
+                </a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>

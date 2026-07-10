@@ -21,3 +21,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('lng_planner.urls')),
 ]
+
+# Authentication settings
+LOGIN_URL = 'auth:login'
+LOGIN_REDIRECT_URL = 'lng_planner:dashboard'
+LOGOUT_REDIRECT_URL = 'auth:login'

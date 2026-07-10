@@ -56,7 +56,7 @@
                             ➕ New Simulation
                         </a>
                         {% if active_simulation %}
-                        <a href="{% url 'lng_planner:export_excel' active_simulation.id %}" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
+                        <a href="{% url 'lng_planner:export_excel' active_simulation.id %}{% if request.GET.from_date and request.GET.to_date %}?from_date={{ request.GET.from_date }}&to_date={{ request.GET.to_date }}{% endif %}" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
                             📥 Export Excel
                         </a>
                         <!-- <a href="{% url 'lng_planner:export_json' active_simulation.id %}" class="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">

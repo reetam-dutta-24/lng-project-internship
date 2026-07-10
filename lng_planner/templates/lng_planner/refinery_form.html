@@ -42,18 +42,75 @@
                     {% endif %}
                 </div>
 
-                <!-- Hidden field for date range ID (for editing existing ranges) -->
-                <input type="hidden" name="date_range_id" id="id_date_range_id" value="">
-                
-                <!-- Add Another Date Range Button -->
+                <!-- Date Ranges Section -->
                 <div class="mt-6">
-                    <button type="button" id="addDateRangeBtn" class="w-full bg-indigo-500 text-white px-6 py-3 rounded-lg hover:bg-indigo-600 transition font-semibold text-lg shadow-md">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Demand Periods</h3>
+                    <p class="text-sm text-gray-600 mb-4">Add one or more date ranges with daily demand quantities and assigned supplier.</p>
+                    
+                    {% if refinery and refinery.date_ranges.exists %}
+                    <!-- Existing date ranges -->
+                    <div id="existingDateRanges" class="space-y-4 mb-4">
+                        <h4 class="font-bold text-gray-700 mb-3">Existing Demand Periods</h4>
+                        {% for date_range in refinery.date_ranges.all %}
+                        <div class="bg-indigo-50 p-6 rounded-lg border-2 border-indigo-300">
+                            <input type="hidden" name="date_ranges_{{ forloop.counter }}_date_range_id" value="{{ date_range.id }}">
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Supplier (Serving) *
+                                    </label>
+                                    <select name="date_ranges_{{ forloop.counter }}_supplier" 
+                                            class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" required>
+                                        <option value="">Select Supplier</option>
+                                        {% for supplier in suppliers %}
+                                            <option value="{{ supplier.id }}" {% if date_range.supplier and date_range.supplier.id == supplier.id %}selected{% endif %}>
+                                                {{ supplier.name }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Daily Demand (MT/day) *
+                                    </label>
+                                    <input type="number" step="0.01" name="date_ranges_{{ forloop.counter }}_daily_refinery_demand" 
+                                           value="{{ date_range.daily_refinery_demand }}"
+                                           class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" required placeholder="e.g., 8">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                        From Date *
+                                    </label>
+                                    <input type="date" name="date_ranges_{{ forloop.counter }}_from_date" 
+                                           value="{{ date_range.from_date|date:'Y-m-d' }}"
+                                           class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" required>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                        To Date *
+                                    </label>
+                                    <input type="date" name="date_ranges_{{ forloop.counter }}_to_date" 
+                                           value="{{ date_range.to_date|date:'Y-m-d' }}"
+                                           class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" required>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Additional date ranges container -->
+                    <div id="additionalDateRanges" class="space-y-4"></div>
+                    
+                    <!-- Add Date Range Button -->
+                    <button type="button" id="addDateRangeBtn" class="w-full mt-4 bg-indigo-500 text-white px-6 py-3 rounded-lg hover:bg-indigo-600 transition font-semibold text-lg shadow-md">
                         + Add Date Range
                     </button>
                 </div>
-
-                <!-- Additional date ranges container -->
-                <div id="additionalDateRanges" class="space-y-4 mt-4"></div>
                 
                 <div class="flex gap-3 pt-6 border-t-2 border-gray-200">
                     <button type="submit" class="flex-1 bg-indigo-500 text-white px-6 py-3 rounded-lg hover:bg-indigo-600 transition font-semibold shadow-md">
@@ -69,33 +126,116 @@
 
     <script>
         let dateRangeCount = 0;
+        
+        // Count existing date ranges if editing
+        {% if refinery and refinery.date_ranges.exists %}
+            dateRangeCount = {{ refinery.date_ranges.count }};
+        {% endif %}
+        
+        // Get all suppliers from template context with plant information
+        const allSuppliersData = [
+            {% if suppliers %}
+                {% for supplier in suppliers %}
+                    {id: {{ supplier.id }}, name: "{{ supplier.name|escapejs }}", plantId: {{ supplier.plant.id }}, plantName: "{{ supplier.plant.name|escapejs }}"},
+                {% endfor %}
+            {% endif %}
+        ];
+
+        // Filter suppliers based on selected plant
+        function filterSuppliersByPlant(plantId) {
+            if (!plantId) {
+                return []; // Return empty if no plant selected
+            }
+            return allSuppliersData.filter(s => s.plantId == plantId);
+        }
+
+        // Update supplier dropdowns when plant changes
+        function updateSupplierDropdowns() {
+            const plantSelect = document.getElementById('id_plant');
+            const selectedPlantId = plantSelect.value;
+            
+            if (!selectedPlantId) return;
+            
+            const filteredSuppliers = filterSuppliersByPlant(selectedPlantId);
+            
+            // Update all supplier dropdowns (existing and dynamic)
+            const supplierDropdowns = document.querySelectorAll('select[name*="_supplier"]');
+            supplierDropdowns.forEach(dropdown => {
+                updateSingleSupplierDropdown(dropdown, filteredSuppliers);
+            });
+        }
+
+        function updateSingleSupplierDropdown(dropdown, suppliers) {
+            const currentValue = dropdown.value;
+            
+            let options = '<option value="">Select Supplier</option>';
+            if (suppliers.length > 0) {
+                suppliers.forEach(supplier => {
+                    options += `<option value="${supplier.id}">${supplier.name}</option>`;
+                });
+            } else {
+                options = '<option value="">No suppliers for this plant</option>';
+            }
+            
+            dropdown.innerHTML = options;
+            dropdown.value = currentValue || "";
+        }
+
+        // Listen for plant change
+        document.getElementById('id_plant').addEventListener('change', updateSupplierDropdowns);
 
         document.getElementById('addDateRangeBtn').addEventListener('click', function() {
             dateRangeCount++;
             
             const container = document.createElement('div');
-            container.className = 'bg-blue-50 p-6 rounded-lg mt-4 border-2 border-blue-200';
+            container.className = 'bg-indigo-50 p-6 rounded-lg border-2 border-indigo-300';
             container.id = 'dateRange_' + dateRangeCount;
             
+            // Get current plant selection and filter suppliers
+            const plantSelect = document.getElementById('id_plant');
+            const selectedPlantId = plantSelect.value;
+            let filteredSuppliers = [];
+            
+            if (selectedPlantId) {
+                filteredSuppliers = filterSuppliersByPlant(selectedPlantId);
+            }
+            
+            // Build supplier options from filtered list
+            let supplierOptions = '<option value="">Select Supplier</option>';
+            if (filteredSuppliers.length > 0) {
+                filteredSuppliers.forEach(supplier => {
+                    supplierOptions += `<option value="${supplier.id}">${supplier.name}</option>`;
+                });
+            } else {
+                supplierOptions = '<option value="">No suppliers for this plant</option>';
+            }
+            
             container.innerHTML = `
-                <div class="flex justify-between items-center mb-4">
-                    <h4 class="font-bold text-gray-800 text-lg">Additional Date Range #${dateRangeCount}</h4>
+                <div class="flex justify-between items-center mb-4 pb-3 border-b border-indigo-200">
+                    <h4 class="font-bold text-gray-800 text-lg">Demand Period #${dateRangeCount}</h4>
                     <button type="button" onclick="removeDateRange(${dateRangeCount})" 
                             class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition text-sm font-semibold">
                         ✕ Remove
                     </button>
                 </div>
                 
-                <!-- Hidden field for date range ID (for editing existing ranges) -->
-                <input type="hidden" name="date_ranges_${dateRangeCount}_date_range_id" id="id_date_ranges_${dateRangeCount}_date_range_id" value="">
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Supplier (Serving) *
+                        </label>
+                        <select name="date_ranges_${dateRangeCount}_supplier" 
+                                class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200">
+                            ${supplierOptions}
+                        </select>
+                    </div>
+                    
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
                             Daily Demand (MT/day) *
                         </label>
                         <input type="number" step="0.01" name="date_ranges_${dateRangeCount}_daily_refinery_demand" 
-                               class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" required>
+                               class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" required placeholder="e.g., 8">
                     </div>
                     
                     <div>
@@ -125,6 +265,9 @@
                 element.remove();
             }
         }
+        
+        // Debug: Log suppliers data
+        console.log('All Suppliers Data:', allSuppliersData);
     </script>
 </body>
 </html>

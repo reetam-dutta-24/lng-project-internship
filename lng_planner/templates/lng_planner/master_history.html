@@ -1,0 +1,175 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Version History</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Master Version History
+            </h1>
+            
+            <a href="{% url 'lng_planner:dashboard' %}" 
+               class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition duration-200 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to Dashboard
+            </a>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+                <p class="text-sm text-gray-600 mb-1">Total Versions</p>
+                <p class="text-3xl font-bold text-gray-800">{{ master_versions.count }}</p>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+                <p class="text-sm text-gray-600 mb-1">Active Version</p>
+                <p class="text-3xl font-bold text-green-600">
+                    {% for version in master_versions %}
+                        {% if version.is_active %}{{ version.version_number }}{% endif %}
+                    {% endfor %}
+                </p>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
+                <p class="text-sm text-gray-600 mb-1">From SAP</p>
+                <p class="text-3xl font-bold text-purple-600">
+                    {{ master_versions|length }}
+                </p>
+            </div>
+        </div>
+
+        <!-- Version History Table -->
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                Version
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                Name
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                Source Type
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                Created By
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                Created At
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for version in master_versions %}
+                        <tr class="{% if version.is_active %}bg-green-50{% endif %} hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="text-lg font-bold text-blue-600">{{ version.version_number }}</span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <p class="text-sm font-medium text-gray-900">{{ version.name }}</p>
+                                {% if version.description %}
+                                    <p class="text-xs text-gray-500 mt-1">{{ version.description }}</p>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if version.source_type == 'SAP' %}
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800">
+                                        🔄 SAP Sync
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+                                        📊 Simulation
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <p class="text-sm text-gray-900">{{ version.created_by.get_full_name|default:version.created_by.username }}</p>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <p class="text-sm text-gray-900">{{ version.created_at|date:"M d, Y" }}</p>
+                                <p class="text-xs text-gray-500">{{ version.created_at|date:"H:i" }}</p>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if version.is_active %}
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                                        ✓ Active
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">
+                                        ⏸️ Inactive
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                {% if version.is_active %}
+                                    <span class="text-green-600 font-semibold">Current</span>
+                                {% else %}
+                                    <button onclick="alert('Version restoration coming soon!')" 
+                                            class="text-blue-600 hover:text-blue-800 font-semibold">
+                                        Restore (Coming Soon)
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                <p class="text-lg font-semibold">No master versions found</p>
+                                <p class="text-sm mt-2">Master versions will appear here when created from SAP sync or simulation publish</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="mt-6 bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Legend</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="flex items-center">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 mr-2">✓ Active</span>
+                    <span class="text-sm text-gray-600">Current master version</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 mr-2">⏸️ Inactive</span>
+                    <span class="text-sm text-gray-600">Previous versions</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 mr-2">🔄 SAP Sync</span>
+                    <span class="text-sm text-gray-600">Created from SAP</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 mr-2">📊 Simulation</span>
+                    <span class="text-sm text-gray-600">Published from simulation</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

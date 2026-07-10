@@ -52,18 +52,66 @@
                     {% endif %}
                 </div>
 
-                <!-- Hidden field for date range ID (for editing existing ranges) -->
-                <input type="hidden" name="date_range_id" id="id_date_range_id" value="">
-                
-                <!-- Add Another Date Range Button -->
+                <!-- Date Ranges Section -->
                 <div class="mt-6">
-                    <button type="button" id="addDateRangeBtn" class="w-full bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition font-semibold text-lg shadow-md">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Supply Periods</h3>
+                    <p class="text-sm text-gray-600 mb-4">Edit existing date ranges or add new ones.</p>
+
+                    <!-- Existing date ranges -->
+                    {% if date_ranges %}
+                    <div id="existingDateRanges" class="space-y-4 mb-4">
+                        {% for date_range in date_ranges %}
+                        <div class="bg-green-50 p-6 rounded-lg border-2 border-green-300" data-range-id="{{ date_range.id }}">
+                            <div class="flex justify-between items-center mb-4 pb-3 border-b border-green-200">
+                                <h4 class="font-bold text-gray-800 text-lg">Supply Period #{{ forloop.counter }}</h4>
+                                <button type="button" onclick="removeExistingRange({{ date_range.id }})" 
+                                        class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition text-sm font-semibold">
+                                    ✕ Remove
+                                </button>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Daily Supply (MT/day) *
+                                    </label>
+                                    <input type="number" step="0.01" name="date_ranges_{{ forloop.counter }}_daily_supply" 
+                                           value="{{ date_range.daily_supply }}"
+                                           class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200" required placeholder="e.g., 10">
+                                    <input type="hidden" name="date_ranges_{{ forloop.counter }}_date_range_id" value="{{ date_range.id }}">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                        From Date *
+                                    </label>
+                                    <input type="date" name="date_ranges_{{ forloop.counter }}_from_date" 
+                                           value="{{ date_range.from_date|date:'Y-m-d' }}"
+                                           class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200" required>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                        To Date *
+                                    </label>
+                                    <input type="date" name="date_ranges_{{ forloop.counter }}_to_date" 
+                                           value="{{ date_range.to_date|date:'Y-m-d' }}"
+                                           class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200" required>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Additional date ranges container -->
+                    <div id="additionalDateRanges" class="space-y-4"></div>
+                    
+                    <!-- Add Date Range Button -->
+                    <button type="button" id="addDateRangeBtn" class="w-full mt-4 bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition font-semibold text-lg shadow-md">
                         + Add Date Range
                     </button>
                 </div>
-
-                <!-- Additional date ranges container -->
-                <div id="additionalDateRanges" class="space-y-4 mt-4"></div>
                 
                 <div class="flex gap-3 pt-6 border-t-2 border-gray-200">
                     <button type="submit" class="flex-1 bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition font-semibold shadow-md">
@@ -79,25 +127,34 @@
 
     <script>
         let dateRangeCount = 0;
+        const existingRangesToDelete = new Set();
+
+        function removeExistingRange(rangeId) {
+            if (confirm('Are you sure you want to remove this date range?')) {
+                existingRangesToDelete.add(rangeId);
+                const element = document.querySelector(`[data-range-id="${rangeId}"]`);
+                if (element) {
+                    element.style.opacity = '0.5';
+                    element.style.pointerEvents = 'none';
+                }
+            }
+        }
 
         document.getElementById('addDateRangeBtn').addEventListener('click', function() {
             dateRangeCount++;
             
             const container = document.createElement('div');
-            container.className = 'bg-green-50 p-6 rounded-lg mt-4 border-2 border-green-200';
+            container.className = 'bg-green-50 p-6 rounded-lg border-2 border-green-300';
             container.id = 'dateRange_' + dateRangeCount;
             
             container.innerHTML = `
-                <div class="flex justify-between items-center mb-4">
-                    <h4 class="font-bold text-gray-800 text-lg">Additional Date Range #${dateRangeCount}</h4>
+                <div class="flex justify-between items-center mb-4 pb-3 border-b border-green-200">
+                    <h4 class="font-bold text-gray-800 text-lg">Supply Period #${dateRangeCount}</h4>
                     <button type="button" onclick="removeDateRange(${dateRangeCount})" 
                             class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition text-sm font-semibold">
                         ✕ Remove
                     </button>
                 </div>
-                
-                <!-- Hidden field for date range ID (for editing existing ranges) -->
-                <input type="hidden" name="date_ranges_${dateRangeCount}_date_range_id" id="id_date_ranges_${dateRangeCount}_date_range_id" value="">
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
@@ -105,7 +162,7 @@
                             Daily Supply (MT/day) *
                         </label>
                         <input type="number" step="0.01" name="date_ranges_${dateRangeCount}_daily_supply" 
-                               class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200" required>
+                               class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200" required placeholder="e.g., 10">
                     </div>
                     
                     <div>
@@ -135,6 +192,16 @@
                 element.remove();
             }
         }
+        // Add hidden inputs for deleted ranges before form submission
+        document.querySelector('form').addEventListener('submit', function(e) {
+            existingRangesToDelete.forEach(rangeId => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'delete_date_range';
+                input.value = rangeId;
+                this.appendChild(input);
+            });
+        });
     </script>
 </body>
 </html>
