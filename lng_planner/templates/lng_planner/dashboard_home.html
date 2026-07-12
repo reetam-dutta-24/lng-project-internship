@@ -29,20 +29,78 @@
     </div>
     {% endif %}
 
-    {% if current_master_version %}
-    <div class="rounded-2xl border border-orange-100 bg-gradient-to-r from-[#fff5e8] via-[#fffaf6] to-[#fef3c7] p-6 card-glow">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
+    {% if current_master_version or plant_alerts or active_simulation %}
+    <div class="rounded-2xl border {% if plant_alerts %}border-red-300 alert-banner-glow bg-gradient-to-r from-[#fff1f1] via-[#fff7f2] to-[#fef3c7]{% else %}border-orange-100 bg-gradient-to-r from-[#fff5e8] via-[#fffaf6] to-[#fef3c7] card-glow{% endif %} p-6">
+        <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div class="min-w-0 flex-1">
+                {% if plant_alerts %}
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="alert-pulse inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <div>
+                        <p class="text-sm font-bold uppercase tracking-[0.28em] text-red-700">Inventory alert details</p>
+                        <p class="mt-1 text-sm font-medium text-red-600">{{ plant_alerts|length }} plant{{ plant_alerts|length|pluralize }} require{{ plant_alerts|length|pluralize:"s," }} immediate attention</p>
+                    </div>
+                    <span class="rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">Critical</span>
+                </div>
+                <div class="mt-4 space-y-3">
+                    {% for plant_id, alert in plant_alerts.items %}
+                    <div class="rounded-xl border border-red-200 bg-white/90 p-4 shadow-sm ring-1 ring-red-100">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="inline-flex h-2.5 w-2.5 rounded-full bg-red-500 alert-pulse"></span>
+                                    <h3 class="text-lg font-bold text-red-900">{{ alert.plant.name }}</h3>
+                                </div>
+                                <p class="mt-1 text-sm text-red-800">
+                                    Inventory is projected to go <strong>negative</strong> on this date. Review supply and demand before then.
+                                </p>
+                            </div>
+                            <div class="flex flex-wrap gap-2 sm:justify-end">
+                                <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left sm:text-right">
+                                    <p class="text-[11px] font-semibold uppercase tracking-wide text-red-500">First negative date</p>
+                                    <p class="mt-0.5 text-sm font-bold text-red-800">{{ alert.date|date:"M d, Y" }}</p>
+                                </div>
+                                <div class="rounded-lg border border-red-300 bg-red-600 px-3 py-2 text-left text-white sm:text-right">
+                                    <p class="text-[11px] font-semibold uppercase tracking-wide text-red-100">Projected inventory</p>
+                                    <p class="mt-0.5 text-sm font-bold">{{ alert.inventory|floatformat:0 }} MT</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <div>
+                        <p class="text-sm font-semibold uppercase tracking-[0.3em] text-orange-600">Inventory alert details</p>
+                        <p class="mt-1 text-sm text-emerald-700">All plants are clear — no negative inventory projected.</p>
+                    </div>
+                    <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">All clear</span>
+                </div>
+                {% endif %}
+            </div>
+            {% if current_master_version %}
+            <div class="shrink-0 rounded-xl border border-orange-200/80 bg-white/70 p-4 text-left lg:max-w-xs lg:text-right">
                 <p class="text-sm font-semibold uppercase tracking-[0.3em] text-orange-600">Active master version</p>
                 <h2 class="mt-2 text-2xl font-semibold text-orange-900">{{ current_master_version.version_number }}</h2>
                 <p class="mt-2 text-sm text-orange-700">{{ current_master_version.name }} • {{ current_master_version.created_at|date:"M d, Y" }}</p>
-            </div>
-            <div class="flex gap-3">
                 {% if is_planning_admin and is_viewing_master %}
-                <a href="{% url 'lng_planner:refresh_master_sap' %}" class="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-700">Refresh from SAP</a>
-                <a href="{% url 'lng_planner:master_history' %}" class="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-700">Version History</a>
+                <div class="mt-4 flex flex-wrap gap-3 lg:justify-end">
+                    <a href="{% url 'lng_planner:refresh_master_sap' %}" class="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-700">Refresh from SAP</a>
+                    <a href="{% url 'lng_planner:master_history' %}" class="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-700">Version History</a>
+                </div>
                 {% endif %}
             </div>
+            {% endif %}
         </div>
     </div>
     {% endif %}

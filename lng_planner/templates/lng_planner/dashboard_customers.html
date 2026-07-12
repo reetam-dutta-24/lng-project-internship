@@ -14,6 +14,8 @@
         </div>
     </div>
 
+    {% include 'lng_planner/_bulk_quantity_adjustment.html' with bulk_source_type='customer' bulk_entity_label='customer' %}
+
     <div class="rounded-2xl border border-slate-200 bg-white p-6 card-glow">
         <div class="mb-4">
             <input type="search" id="customerSearch" placeholder="🔍 Search customer name, plant, or supplier..." class="w-full rounded-xl border border-orange-300 bg-orange-50 px-4 py-3 text-sm font-medium shadow-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200" />

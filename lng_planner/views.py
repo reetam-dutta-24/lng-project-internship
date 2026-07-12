@@ -522,170 +522,268 @@ def dashboard_section(request, section):
     return render(request, f'lng_planner/dashboard_{section}.html', context)
 
 
+def _resolve_bulk_adjustment_targets(simulation, source_type, entity_id):
+    """
+    Resolve which supplier networks, standalone demand rows, and cargos
+    should be scaled for a bulk percentage adjustment.
+
+    source_type:
+      - supplier: scale that supplier + linked customer/refinery dates + plant cargos
+      - customer: scale that customer's demand; cascade to linked supplier networks + plant cargos
+      - refinery: scale that refinery's demand; cascade to linked supplier networks + plant cargos
+    """
+    suppliers = []
+    extra_customer_dates = []
+    extra_refinery_dates = []
+    plant_ids = set()
+    entity_name = ''
+    plant_name = ''
+
+    if source_type == 'supplier':
+        supplier = Supplier.objects.select_related('plant').get(pk=entity_id, simulation=simulation)
+        suppliers = [supplier]
+        entity_name = supplier.name
+        plant_name = supplier.plant.name if supplier.plant else 'N/A'
+        plant_ids.add(supplier.plant_id)
+    elif source_type == 'customer':
+        customer = Customer.objects.select_related('plant').prefetch_related(
+            'date_ranges__supplier__plant'
+        ).get(pk=entity_id, simulation=simulation)
+        entity_name = customer.name
+        plant_name = customer.plant.name if customer.plant else 'N/A'
+        plant_ids.add(customer.plant_id)
+        linked_suppliers = {}
+        for cd in customer.date_ranges.all():
+            if cd.supplier_id:
+                linked_suppliers[cd.supplier_id] = cd.supplier
+            else:
+                extra_customer_dates.append(cd)
+        suppliers = list(linked_suppliers.values())
+        if not suppliers:
+            extra_customer_dates = list(customer.date_ranges.all())
+    elif source_type == 'refinery':
+        refinery = Refinery.objects.select_related('plant').prefetch_related(
+            'date_ranges__supplier__plant'
+        ).get(pk=entity_id, simulation=simulation)
+        entity_name = refinery.name
+        plant_name = refinery.plant.name if refinery.plant else 'N/A'
+        plant_ids.add(refinery.plant_id)
+        linked_suppliers = {}
+        for rd in refinery.date_ranges.all():
+            if rd.supplier_id:
+                linked_suppliers[rd.supplier_id] = rd.supplier
+            else:
+                extra_refinery_dates.append(rd)
+        suppliers = list(linked_suppliers.values())
+        if not suppliers:
+            extra_refinery_dates = list(refinery.date_ranges.all())
+    else:
+        raise ValueError('Invalid source type')
+
+    for supplier in suppliers:
+        if supplier.plant_id:
+            plant_ids.add(supplier.plant_id)
+
+    cargos = list(Cargo.objects.filter(simulation=simulation, plant_id__in=plant_ids)) if plant_ids else []
+
+    supplier_date_count = sum(s.date_ranges.count() for s in suppliers)
+    customer_date_ids = set(extra_customer_dates)
+    refinery_date_ids = set(extra_refinery_dates)
+    for supplier in suppliers:
+        customer_date_ids.update(supplier.customer_date_ranges.all())
+        refinery_date_ids.update(supplier.refinery_date_ranges.all())
+
+    return {
+        'entity_name': entity_name,
+        'plant_name': plant_name,
+        'source_type': source_type,
+        'suppliers': suppliers,
+        'extra_customer_dates': list({cd.id: cd for cd in extra_customer_dates}.values()),
+        'extra_refinery_dates': list({rd.id: rd for rd in extra_refinery_dates}.values()),
+        'cargos': cargos,
+        'counts': {
+            'supplier_dates': supplier_date_count,
+            'customer_dates': len(customer_date_ids),
+            'refinery_dates': len(refinery_date_ids),
+            'cargos': len(cargos),
+            'supplier_networks': len(suppliers),
+        },
+        'example_qty': (
+            suppliers[0].date_ranges.first().daily_supply
+            if suppliers and suppliers[0].date_ranges.exists()
+            else (
+                extra_customer_dates[0].daily_demand if extra_customer_dates
+                else (extra_refinery_dates[0].daily_refinery_demand if extra_refinery_dates else 0)
+            )
+        ),
+    }
+
+
 @login_required
 def bulk_supply_adjustment(request):
-    """Handle bulk supply adjustment for a supplier and its linked customers/refineries"""
+    """
+    Bulk percentage adjustment across a supply/demand network.
+
+    Scales supplier supply, linked customer/refinery demand, and plant cargos
+    by the same percentage so planning balances stay aligned.
+    Accepts source_type=supplier|customer|refinery (supplier_id kept for compatibility).
+    """
     from django.db import transaction
-    
-    if request.method == 'POST':
-        simulation_id = request.POST.get('simulation_id')
-        supplier_id = request.POST.get('supplier_id')
-        adjustment_type = request.POST.get('adjustment_type')  # 'increase' or 'decrease'
-        percentage_str = request.POST.get('percentage', '0')
-        
-        try:
-            percentage = float(percentage_str)
-        except (ValueError, TypeError):
-            return JsonResponse({'success': False, 'error': 'Invalid percentage value'})
-        
-        # Validate inputs
-        if not simulation_id or not supplier_id:
-            return JsonResponse({'success': False, 'error': 'Missing required parameters'})
-        
-        if adjustment_type not in ['increase', 'decrease']:
-            return JsonResponse({'success': False, 'error': 'Invalid adjustment type'})
-        
-        if percentage < 0 or percentage > 100:
-            return JsonResponse({'success': False, 'error': 'Percentage must be between 0 and 100'})
-        
-        try:
-            simulation = Simulation.objects.get(pk=simulation_id)
-            supplier = Supplier.objects.get(pk=supplier_id, simulation=simulation)
-        except (Simulation.DoesNotExist, Supplier.DoesNotExist):
-            return JsonResponse({'success': False, 'error': 'Invalid simulation or supplier'})
-        
-        # Calculate the multiplier
-        if adjustment_type == 'increase':
-            multiplier = 1 + (percentage / 100)
-        else:  # decrease
-            multiplier = 1 - (percentage / 100)
-        
-        # Perform the update in a transaction
-        try:
-            with transaction.atomic():
-                updated_records = {
-                    'supplier_dates': 0,
-                    'customer_dates': 0,
-                    'refinery_dates': 0,
-                }
-                
-                # Update SupplierDate records
-                for sd in supplier.date_ranges.all():
-                    old_supply = sd.daily_supply
-                    sd.daily_supply = round(old_supply * multiplier, 2)
-                    sd.save()
-                    updated_records['supplier_dates'] += 1
-                
-                # Update CustomerDate records linked to this supplier
-                for cd in supplier.customer_date_ranges.all():
-                    old_demand = cd.daily_demand
-                    cd.daily_demand = round(old_demand * multiplier, 2)
-                    cd.save()
-                    updated_records['customer_dates'] += 1
-                
-                # Update RefineryDate records linked to this supplier
-                for rd in supplier.refinery_date_ranges.all():
-                    old_demand = rd.daily_refinery_demand
-                    rd.daily_refinery_demand = round(old_demand * multiplier, 2)
-                    rd.save()
-                    updated_records['refinery_dates'] += 1
-                
-                total_updated = sum(updated_records.values())
-                
-                # Log the adjustment (optional audit trail)
-                from django.utils import timezone
-                print(f"BULK ADJUSTMENT - User: {request.user.username}, "
-                      f"Time: {timezone.now()}, Supplier: {supplier.name}, "
-                      f"Type: {adjustment_type}, Percentage: {percentage}%, "
-                      f"Records Updated: {total_updated}")
-                
-                return JsonResponse({
-                    'success': True,
-                    'message': f'Successfully updated {total_updated} records',
-                    'details': {
-                        'supplier_name': supplier.name,
-                        'adjustment_type': adjustment_type,
-                        'percentage': percentage,
-                        'multiplier': multiplier,
-                        'records_updated': updated_records,
-                        'total_updated': total_updated,
-                    }
-                })
-                
-        except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'error': f'Failed to update records: {str(e)}'
-            })
-    
-    # GET request - show preview
-    simulation_id = request.GET.get('simulation_id')
-    supplier_id = request.GET.get('supplier_id')
-    adjustment_type = request.GET.get('adjustment_type', 'decrease')
-    percentage_str = request.GET.get('percentage', '0')
-    
+
+    params = request.POST if request.method == 'POST' else request.GET
+    simulation_id = params.get('simulation_id')
+    source_type = (params.get('source_type') or 'supplier').strip().lower()
+    entity_id = params.get('entity_id') or params.get('supplier_id')
+    adjustment_type = params.get('adjustment_type', 'decrease')
+    percentage_str = params.get('percentage', '0')
+    include_cargo = str(params.get('include_cargo', '1')).lower() not in {'0', 'false', 'no'}
+
     try:
-        percentage = float(percentage_str) if percentage_str else 0
+        percentage = float(percentage_str) if percentage_str not in (None, '') else 0
     except (ValueError, TypeError):
-        percentage = 0
-    
-    if not simulation_id or not supplier_id:
+        return JsonResponse({'success': False, 'error': 'Invalid percentage value'})
+
+    if not simulation_id or not entity_id:
         return JsonResponse({'success': False, 'error': 'Missing required parameters'})
-    
+
+    if source_type not in {'supplier', 'customer', 'refinery'}:
+        return JsonResponse({'success': False, 'error': 'Invalid source type'})
+
+    if adjustment_type not in {'increase', 'decrease'}:
+        return JsonResponse({'success': False, 'error': 'Invalid adjustment type'})
+
+    if percentage < 0 or percentage > 100:
+        return JsonResponse({'success': False, 'error': 'Percentage must be between 0 and 100'})
+
     try:
         simulation = Simulation.objects.get(pk=simulation_id)
-        supplier = Supplier.objects.get(pk=supplier_id, simulation=simulation)
-    except (Simulation.DoesNotExist, Supplier.DoesNotExist):
-        return JsonResponse({'success': False, 'error': 'Invalid simulation or supplier'})
-    
-    # Calculate the multiplier for preview
+    except Simulation.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Invalid simulation'})
+
+    if simulation.is_master:
+        return JsonResponse({'success': False, 'error': 'Cannot adjust quantities on the master simulation'})
+
+    # Only the simulation owner (or superuser) may mutate quantities
+    if not request.user.is_superuser and simulation.user_id != request.user.id:
+        return JsonResponse({'success': False, 'error': 'You do not have permission to adjust this simulation'})
+
+    try:
+        targets = _resolve_bulk_adjustment_targets(simulation, source_type, int(entity_id))
+    except (Supplier.DoesNotExist, Customer.DoesNotExist, Refinery.DoesNotExist, ValueError):
+        return JsonResponse({'success': False, 'error': 'Invalid simulation entity selection'})
+
     if adjustment_type == 'increase':
         multiplier = 1 + (percentage / 100)
-    else:  # decrease
-        multiplier = 1 - (percentage / 100)
-    
-    # Get sample data for preview
-    supplier_dates = list(supplier.date_ranges.all()[:3].values('from_date', 'to_date', 'daily_supply'))
-    customer_count = supplier.customer_date_ranges.count()
-    refinery_count = supplier.refinery_date_ranges.count()
-    
-    # DEBUG: Log the counts being returned
-    print(f"\n🔍 BULK ADJUSTMENT PREVIEW:")
-    print(f"  Supplier: {supplier.name} (ID: {supplier.id})")
-    print(f"  Simulation: {simulation.name} (ID: {simulation.id})")
-    print(f"  CustomerDate count: {customer_count}")
-    print(f"  RefineryDate count: {refinery_count}")
-    if customer_count > 0:
-        print(f"  Linked Customers:")
-        for cd in supplier.customer_date_ranges.all():
-            print(f"    - {cd.customer.name}: {cd.daily_demand} MT/day")
-    print("=" * 60 + "\n")
-    
-    # Calculate old and new supply for first date range as example
-    first_date_range = supplier.date_ranges.first()
-    if first_date_range:
-        old_supply = first_date_range.daily_supply
-        new_supply = round(old_supply * multiplier, 2)
     else:
-        old_supply = 0
-        new_supply = 0
-    
-    return JsonResponse({
-        'success': True,
-        'preview': {
-            'supplier_name': supplier.name,
-            'plant_name': supplier.plant.name if supplier.plant else 'N/A',
-            'adjustment_type': adjustment_type,
-            'percentage': percentage,
-            'multiplier': multiplier,
-            'old_supply_example': old_supply,
-            'new_supply_example': new_supply,
-            'supplier_date_ranges_count': supplier.date_ranges.count(),
-            'customer_count': customer_count,
-            'refinery_count': refinery_count,
-            'total_records_affected': supplier.date_ranges.count() + customer_count + refinery_count,
-        }
-    })
+        multiplier = 1 - (percentage / 100)
+
+    if request.method != 'POST':
+        example_old = float(targets['example_qty'] or 0)
+        return JsonResponse({
+            'success': True,
+            'preview': {
+                'entity_name': targets['entity_name'],
+                'supplier_name': targets['entity_name'],
+                'plant_name': targets['plant_name'],
+                'source_type': source_type,
+                'adjustment_type': adjustment_type,
+                'percentage': percentage,
+                'multiplier': multiplier,
+                'old_supply_example': example_old,
+                'new_supply_example': round(example_old * multiplier, 2),
+                'supplier_date_ranges_count': targets['counts']['supplier_dates'],
+                'customer_count': targets['counts']['customer_dates'],
+                'refinery_count': targets['counts']['refinery_dates'],
+                'cargo_count': targets['counts']['cargos'] if include_cargo else 0,
+                'supplier_networks': targets['counts']['supplier_networks'],
+                'include_cargo': include_cargo,
+                'total_records_affected': (
+                    targets['counts']['supplier_dates']
+                    + targets['counts']['customer_dates']
+                    + targets['counts']['refinery_dates']
+                    + (targets['counts']['cargos'] if include_cargo else 0)
+                ),
+            }
+        })
+
+    try:
+        with transaction.atomic():
+            updated_records = {
+                'supplier_dates': 0,
+                'customer_dates': 0,
+                'refinery_dates': 0,
+                'cargos': 0,
+            }
+            touched_customer_ids = set()
+            touched_refinery_ids = set()
+
+            for supplier in targets['suppliers']:
+                for sd in supplier.date_ranges.all():
+                    sd.daily_supply = round(float(sd.daily_supply) * multiplier, 2)
+                    sd.save(update_fields=['daily_supply'])
+                    updated_records['supplier_dates'] += 1
+
+                for cd in supplier.customer_date_ranges.all():
+                    if cd.id in touched_customer_ids:
+                        continue
+                    cd.daily_demand = round(float(cd.daily_demand) * multiplier, 2)
+                    cd.save(update_fields=['daily_demand'])
+                    touched_customer_ids.add(cd.id)
+                    updated_records['customer_dates'] += 1
+
+                for rd in supplier.refinery_date_ranges.all():
+                    if rd.id in touched_refinery_ids:
+                        continue
+                    rd.daily_refinery_demand = round(float(rd.daily_refinery_demand) * multiplier, 2)
+                    rd.save(update_fields=['daily_refinery_demand'])
+                    touched_refinery_ids.add(rd.id)
+                    updated_records['refinery_dates'] += 1
+
+            for cd in targets['extra_customer_dates']:
+                if cd.id in touched_customer_ids:
+                    continue
+                cd.daily_demand = round(float(cd.daily_demand) * multiplier, 2)
+                cd.save(update_fields=['daily_demand'])
+                touched_customer_ids.add(cd.id)
+                updated_records['customer_dates'] += 1
+
+            for rd in targets['extra_refinery_dates']:
+                if rd.id in touched_refinery_ids:
+                    continue
+                rd.daily_refinery_demand = round(float(rd.daily_refinery_demand) * multiplier, 2)
+                rd.save(update_fields=['daily_refinery_demand'])
+                touched_refinery_ids.add(rd.id)
+                updated_records['refinery_dates'] += 1
+
+            if include_cargo:
+                for cargo in targets['cargos']:
+                    cargo.amount = round(float(cargo.amount) * multiplier, 2)
+                    cargo.save(update_fields=['amount'])
+                    updated_records['cargos'] += 1
+
+            total_updated = sum(updated_records.values())
+            return JsonResponse({
+                'success': True,
+                'message': (
+                    f"Scaled {targets['entity_name']} by {percentage}% "
+                    f"({adjustment_type}) — {total_updated} records updated"
+                ),
+                'details': {
+                    'entity_name': targets['entity_name'],
+                    'supplier_name': targets['entity_name'],
+                    'source_type': source_type,
+                    'adjustment_type': adjustment_type,
+                    'percentage': percentage,
+                    'multiplier': multiplier,
+                    'records_updated': updated_records,
+                    'total_updated': total_updated,
+                }
+            })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Failed to update records: {str(e)}'
+        })
 
 
 @login_required

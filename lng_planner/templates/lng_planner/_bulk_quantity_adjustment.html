@@ -1,0 +1,297 @@
+{% if active_simulation and not is_viewing_master and bulk_source_type %}
+<div id="bulk-qty-panel" class="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#f8f7ff] via-white to-[#fff8f2] p-6 card-glow"
+     data-simulation-id="{{ active_simulation.id }}"
+     data-source-type="{{ bulk_source_type }}"
+     data-preview-url="{% url 'lng_planner:bulk_supply_adjustment' %}"
+     data-apply-url="{% url 'lng_planner:bulk_supply_adjustment' %}">
+    {% csrf_token %}
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+            <p class="text-sm font-semibold uppercase tracking-[0.28em] text-indigo-600">Bulk quantity adjustment</p>
+            <h3 class="mt-2 text-2xl font-semibold text-slate-900">Scale {{ bulk_entity_label }} quantities by percentage</h3>
+            <p class="mt-2 max-w-2xl text-sm text-slate-600">
+                Increase or reduce a {{ bulk_entity_label }} by a percentage. Linked supplier supply, customer demand, refinery demand,
+                and plant cargo quantities are scaled together so the network stays aligned.
+            </p>
+        </div>
+        <div class="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+            Simulation: <strong>{{ active_simulation.name }}</strong>
+        </div>
+    </div>
+
+    <div class="mt-6 grid gap-5 lg:grid-cols-2">
+        <div class="space-y-4">
+            <div>
+                <label for="bulk-entity-select" class="mb-2 block text-sm font-medium text-slate-700">Select {{ bulk_entity_label }}</label>
+                <select id="bulk-entity-select" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                    <option value="">-- Choose {{ bulk_entity_label }} --</option>
+                    {% if bulk_source_type == 'supplier' %}
+                        {% for supplier in suppliers %}
+                        <option value="{{ supplier.id }}">{{ supplier.name }} ({{ supplier.plant.name }})</option>
+                        {% endfor %}
+                    {% elif bulk_source_type == 'customer' %}
+                        {% for customer in customers %}
+                        <option value="{{ customer.id }}">{{ customer.name }} ({{ customer.plant.name }})</option>
+                        {% endfor %}
+                    {% elif bulk_source_type == 'refinery' %}
+                        {% for refinery in refineries %}
+                        <option value="{{ refinery.id }}">{{ refinery.name }} ({{ refinery.plant.name }})</option>
+                        {% endfor %}
+                    {% endif %}
+                </select>
+            </div>
+
+            <div>
+                <label class="mb-2 block text-sm font-medium text-slate-700">Direction</label>
+                <div class="flex gap-3">
+                    <label class="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-800">
+                        <input type="radio" name="bulk_adjustment_type" value="increase" class="accent-emerald-600" checked>
+                        Increase
+                    </label>
+                    <label class="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-800">
+                        <input type="radio" name="bulk_adjustment_type" value="decrease" class="accent-amber-600">
+                        Decrease
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <div class="mb-2 flex items-center justify-between">
+                    <label for="bulk-percentage-slider" class="text-sm font-medium text-slate-700">Percentage</label>
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="bulk-percentage-input" min="0" max="100" step="1" value="10"
+                               class="w-20 rounded-lg border border-slate-300 px-2 py-1 text-right text-sm font-semibold text-indigo-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                        <span class="text-sm font-semibold text-slate-500">%</span>
+                    </div>
+                </div>
+                <input type="range" id="bulk-percentage-slider" min="0" max="100" step="1" value="10"
+                       class="w-full accent-indigo-600">
+                <div class="mt-1 flex justify-between text-xs text-slate-400">
+                    <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+                </div>
+            </div>
+
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" id="bulk-include-cargo" class="accent-indigo-600" checked>
+                Also scale plant cargo quantities
+            </label>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white/90 p-5">
+            <h4 class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Live preview</h4>
+            <div id="bulk-preview-empty" class="mt-4 text-sm text-slate-500">
+                Select a {{ bulk_entity_label }} and percentage to preview cascaded changes.
+            </div>
+            <div id="bulk-preview-content" class="mt-4 hidden space-y-4">
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-400">Entity</p>
+                    <p id="bulk-preview-entity" class="mt-1 text-lg font-semibold text-slate-900"></p>
+                    <p id="bulk-preview-plant" class="text-sm text-slate-500"></p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <p class="text-xs text-slate-500">Example qty</p>
+                        <p id="bulk-preview-old" class="mt-1 font-semibold text-red-600"></p>
+                    </div>
+                    <div class="rounded-xl bg-indigo-50 p-3">
+                        <p class="text-xs text-indigo-600">After adjustment</p>
+                        <p id="bulk-preview-new" class="mt-1 font-semibold text-indigo-700"></p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="rounded-lg border border-slate-100 px-3 py-2">
+                        <span class="text-slate-500">Supplier dates</span>
+                        <p id="bulk-preview-suppliers" class="font-semibold text-slate-800">0</p>
+                    </div>
+                    <div class="rounded-lg border border-slate-100 px-3 py-2">
+                        <span class="text-slate-500">Customer dates</span>
+                        <p id="bulk-preview-customers" class="font-semibold text-slate-800">0</p>
+                    </div>
+                    <div class="rounded-lg border border-slate-100 px-3 py-2">
+                        <span class="text-slate-500">Refinery dates</span>
+                        <p id="bulk-preview-refineries" class="font-semibold text-slate-800">0</p>
+                    </div>
+                    <div class="rounded-lg border border-slate-100 px-3 py-2">
+                        <span class="text-slate-500">Cargo records</span>
+                        <p id="bulk-preview-cargos" class="font-semibold text-slate-800">0</p>
+                    </div>
+                </div>
+                <p class="text-sm text-slate-600">
+                    Total records: <strong id="bulk-preview-total" class="text-indigo-700">0</strong>
+                </p>
+            </div>
+            <div id="bulk-preview-error" class="mt-4 hidden rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></div>
+
+            <div class="mt-6 flex flex-wrap gap-3">
+                <button type="button" id="bulk-apply-btn"
+                        class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled>
+                    Apply adjustment
+                </button>
+                <p class="self-center text-xs text-slate-500">This cannot be auto-undone. Review the preview first.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const panel = document.getElementById('bulk-qty-panel');
+    if (!panel) return;
+
+    const simulationId = panel.dataset.simulationId;
+    const sourceType = panel.dataset.sourceType;
+    const previewUrl = panel.dataset.previewUrl;
+    const applyUrl = panel.dataset.applyUrl;
+    const entitySelect = document.getElementById('bulk-entity-select');
+    const slider = document.getElementById('bulk-percentage-slider');
+    const percentInput = document.getElementById('bulk-percentage-input');
+    const includeCargo = document.getElementById('bulk-include-cargo');
+    const applyBtn = document.getElementById('bulk-apply-btn');
+    const previewEmpty = document.getElementById('bulk-preview-empty');
+    const previewContent = document.getElementById('bulk-preview-content');
+    const previewError = document.getElementById('bulk-preview-error');
+    let previewTimer = null;
+
+    function getCookie(name) {
+        const match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
+        return match ? decodeURIComponent(match[1]) : null;
+    }
+
+    function csrfToken() {
+        const input = panel.querySelector('[name=csrfmiddlewaretoken]');
+        return (input && input.value) || getCookie('csrftoken');
+    }
+
+    function syncPercentage(fromSlider) {
+        let value = fromSlider ? Number(slider.value) : Number(percentInput.value);
+        if (Number.isNaN(value)) value = 0;
+        value = Math.max(0, Math.min(100, value));
+        slider.value = value;
+        percentInput.value = value;
+        schedulePreview();
+    }
+
+    function currentParams() {
+        const adjustmentType = (panel.querySelector('input[name="bulk_adjustment_type"]:checked') || {}).value || 'increase';
+        return {
+            simulation_id: simulationId,
+            source_type: sourceType,
+            entity_id: entitySelect.value,
+            supplier_id: sourceType === 'supplier' ? entitySelect.value : '',
+            adjustment_type: adjustmentType,
+            percentage: percentInput.value,
+            include_cargo: includeCargo.checked ? '1' : '0',
+        };
+    }
+
+    function schedulePreview() {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(loadPreview, 220);
+    }
+
+    function loadPreview() {
+        const params = currentParams();
+        previewError.classList.add('hidden');
+
+        if (!params.entity_id) {
+            previewEmpty.classList.remove('hidden');
+            previewContent.classList.add('hidden');
+            applyBtn.disabled = true;
+            return;
+        }
+
+        const qs = new URLSearchParams(params);
+        fetch(previewUrl + '?' + qs.toString(), { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    previewEmpty.classList.add('hidden');
+                    previewContent.classList.add('hidden');
+                    previewError.textContent = data.error || 'Preview failed';
+                    previewError.classList.remove('hidden');
+                    applyBtn.disabled = true;
+                    return;
+                }
+                const p = data.preview;
+                document.getElementById('bulk-preview-entity').textContent = p.entity_name || p.supplier_name;
+                document.getElementById('bulk-preview-plant').textContent = 'Plant: ' + (p.plant_name || 'N/A');
+                document.getElementById('bulk-preview-old').textContent = Number(p.old_supply_example).toLocaleString() + ' MT';
+                document.getElementById('bulk-preview-new').textContent = Number(p.new_supply_example).toLocaleString() + ' MT';
+                document.getElementById('bulk-preview-suppliers').textContent = p.supplier_date_ranges_count;
+                document.getElementById('bulk-preview-customers').textContent = p.customer_count;
+                document.getElementById('bulk-preview-refineries').textContent = p.refinery_count;
+                document.getElementById('bulk-preview-cargos').textContent = p.cargo_count || 0;
+                document.getElementById('bulk-preview-total').textContent = p.total_records_affected;
+                previewEmpty.classList.add('hidden');
+                previewContent.classList.remove('hidden');
+                applyBtn.disabled = !p.total_records_affected;
+            })
+            .catch(err => {
+                previewError.textContent = 'Network error: ' + err.message;
+                previewError.classList.remove('hidden');
+                applyBtn.disabled = true;
+            });
+    }
+
+    function applyAdjustment() {
+        const params = currentParams();
+        if (!params.entity_id) {
+            alert('Please select an entity first.');
+            return;
+        }
+        const label = entitySelect.options[entitySelect.selectedIndex].textContent;
+        const confirmed = window.confirm(
+            'Apply ' + params.adjustment_type + ' of ' + params.percentage + '% to "' + label + '"?\n\n' +
+            'This will cascade across linked suppliers, customers, refineries' +
+            (includeCargo.checked ? ', and plant cargos.' : '.')
+        );
+        if (!confirmed) return;
+
+        const token = csrfToken();
+        if (!token) {
+            alert('Security token missing. Please refresh the page.');
+            return;
+        }
+
+        applyBtn.disabled = true;
+        applyBtn.textContent = 'Applying...';
+
+        const body = new FormData();
+        Object.keys(params).forEach(key => body.append(key, params[key]));
+        body.append('csrfmiddlewaretoken', token);
+
+        fetch(applyUrl, {
+            method: 'POST',
+            body: body,
+            headers: { 'X-CSRFToken': token, 'Accept': 'application/json' }
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message || 'Adjustment applied.');
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Adjustment failed.');
+                    applyBtn.disabled = false;
+                    applyBtn.textContent = 'Apply adjustment';
+                }
+            })
+            .catch(err => {
+                alert('Network error: ' + err.message);
+                applyBtn.disabled = false;
+                applyBtn.textContent = 'Apply adjustment';
+            });
+    }
+
+    entitySelect.addEventListener('change', schedulePreview);
+    slider.addEventListener('input', () => syncPercentage(true));
+    percentInput.addEventListener('input', () => syncPercentage(false));
+    includeCargo.addEventListener('change', schedulePreview);
+    panel.querySelectorAll('input[name="bulk_adjustment_type"]').forEach(el => {
+        el.addEventListener('change', schedulePreview);
+    });
+    applyBtn.addEventListener('click', applyAdjustment);
+})();
+</script>
+{% endif %}

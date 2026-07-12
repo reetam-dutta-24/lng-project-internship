@@ -14,6 +14,8 @@
         </div>
     </div>
 
+    {% include 'lng_planner/_bulk_quantity_adjustment.html' with bulk_source_type='refinery' bulk_entity_label='refinery' %}
+
     <div class="rounded-2xl border border-slate-200 bg-white p-6 card-glow">
         <div class="mb-4">
             <input type="search" id="refinerySearch" placeholder="🔍 Search refinery name, plant, or date range..." class="w-full rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-3 text-sm font-medium shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />

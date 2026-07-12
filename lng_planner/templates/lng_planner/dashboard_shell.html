@@ -12,6 +12,16 @@
         .sidebar-link { transition: all 0.2s ease; color: #7c2d12; }
         .sidebar-link:hover { background-color: #fff2e7; color: #c2410c; }
         .card-glow { box-shadow: 0 16px 34px rgba(201, 112, 69, 0.12); }
+        .alert-pulse {
+            animation: alert-pulse 1.8s ease-in-out infinite;
+        }
+        @keyframes alert-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45); }
+            50% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+        }
+        .alert-banner-glow {
+            box-shadow: 0 18px 40px rgba(185, 28, 28, 0.18);
+        }
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
